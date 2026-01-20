@@ -26,7 +26,8 @@ spec:
       cpu: "100m"
   probes:
     readiness:
-      path: /
+      path: /actuator/health
+      port: 8080
   env: []
   envFrom:
     - secretRef:
