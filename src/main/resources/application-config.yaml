@@ -1,0 +1,19 @@
+novari:
+  qlik:
+    base-url: ${qlik-base-url}
+    api-token: ${qlik-api-token}
+    audit-endpoint: "/api/v1/audits"
+    audit-days-back: 400
+    users-endpoint: "/api/v1/users"
+    excluded-email-domains: ${excluded-email-domains:}
+    cleanup-delete-guest-users: false
+    cleanup-remove-memberships: true
+
+  graph:
+    base-url: "https://graph.microsoft.com/v1.0"
+    tenant-id: ${sharepoint-tenant-id}
+    client-id: ${sharepoint-client-id}
+    client-secret: ${sharepoint-app-secret}
+    invite-redirect-url: ${sharepoint-invite-redirect-url}
+    group-mappings: ${group-mappings:}
+

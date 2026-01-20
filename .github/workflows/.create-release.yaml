@@ -1,0 +1,32 @@
+name: Create release
+
+on:
+  workflow_call:
+    inputs:
+      image-tags:
+        description: "Docker image with tag"
+        required: true
+        type: string
+
+jobs:
+  create-release:
+    name: Create release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Extract tag from image reference
+        id: version
+        run: |
+          full_tag="${{ inputs.image-tags }}"
+          version="${full_tag##*:}"
+          echo "Extracted version: $version"
+          echo "version=$version" >> $GITHUB_OUTPUT
+
+      - uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ steps.version.outputs.version }}
+          generateReleaseNotes: true

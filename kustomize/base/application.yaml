@@ -1,0 +1,33 @@
+apiVersion: fintlabs.no/v1alpha1
+kind: Application
+metadata:
+  name: fint-qlik-sync-sharepoint
+  labels:
+    app.kubernetes.io/name: fint-qlik-sync-sharepoint
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/instance: fint-qlik-sync-sharepoint
+    app.kubernetes.io/part-of: fintlabs-no
+    fintlabs.no/team: bas
+    fintlabs.no/org-id: fintlabs.no
+spec:
+  port: 8080
+  orgId: fintlabs.no
+  image: ghcr.io/fintlabs/fint-qlik-sync-sharepoint
+  imagePullPolicy: Always
+  imagePullSecrets: 
+    - ghcr
+  replicas: 1
+  resources:
+    limits:
+      memory: "768Mi"
+      cpu: "500m"
+    requests:
+      memory: "320Mi"
+      cpu: "100m"
+  probes:
+    readiness:
+      path: /
+  env: []
+  envFrom:
+    - secretRef:
+        name: fint-qlik-sync-sharepoint
