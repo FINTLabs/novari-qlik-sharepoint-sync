@@ -11,7 +11,7 @@ patches:
   - patch: |-
       - op: replace
         path: "/spec/itemPath"
-        value: "vaults/aks-beta-vault/items/fint-qlik-sync-sharepoint"
+        value: "vaults/aks-beta-vault/items/novari-qlik-sharepoint-sync"
     target:
       kind: OnePasswordItem
-      name: fint-qlik-sync-sharepoint
+      name: novari-qlik-sharepoint-sync

@@ -11,9 +11,9 @@ novari:
 
   graph:
     base-url: "https://graph.microsoft.com/v1.0"
-    tenant-id: ${sharepoint-tenant-id}
-    client-id: ${sharepoint-client-id}
-    client-secret: ${sharepoint-app-secret}
-    invite-redirect-url: ${sharepoint-invite-redirect-url}
+    tenant-id: ${tenant-id}
+    client-id: ${client-id}
+    client-secret: ${client-secret}
+    invite-redirect-url: ${invite-redirect-url}
     group-mappings: ${group-mappings:}
 
