@@ -1,16 +1,16 @@
-FROM gradle:9.2.1-jdk AS builder
+FROM gradle:jdk23 AS builder
 WORKDIR /app
 
+USER root
 COPY . .
-RUN gradle --no-daemon bootJar
+RUN gradle --no-daemon build
 
-FROM gcr.io/distroless/java21-debian12:latest
-ENV TZ="Europe/Oslo"
-ENV JAVA_TOOL_OPTIONS="-XX:+ExitOnOutOfMemoryError"
+FROM eclipse-temurin:23-jre
+ENV TZ="Europe/Oslo" JAVA_TOOL_OPTIONS="-XX:+ExitOnOutOfMemoryError"
+COPY --from=builder /app/build/libs/novari-qlik-sharepoint-sync*.jar /data/app.jar
 
 WORKDIR /data
-COPY --from=builder /app/build/libs/*.jar /data/app.jar
-
 USER nonroot
+
+ENTRYPOINT ["java", "-jar", "/data/app.jar"]
 EXPOSE 8080
-CMD ["app.jar"]
