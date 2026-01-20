@@ -1,4 +1,4 @@
-FROM gradle:9.2.1-jdk23 AS builder
+FROM gradle:9.2.1-jdk AS builder
 WORKDIR /app
 
 COPY . .
