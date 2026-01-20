@@ -1,3 +1,5 @@
+package no.novari.qliktosharepoint.service;
+
 import no.novari.qliktosharepoint.cache.EntraCache;
 import no.novari.qliktosharepoint.config.GraphProperties;
 import no.novari.qliktosharepoint.config.QlikProperties;

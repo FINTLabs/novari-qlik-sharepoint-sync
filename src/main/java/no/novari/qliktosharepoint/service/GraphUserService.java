@@ -2,7 +2,6 @@ package no.novari.qliktosharepoint.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.microsoft.graph.models.Invitation;
 import com.microsoft.graph.models.User;
 import com.microsoft.graph.serviceclient.GraphServiceClient;
 import com.microsoft.kiota.ApiException;
@@ -55,7 +54,7 @@ public class GraphUserService {
                 return Optional.empty();
             }
 
-            return Optional.of(page.getValue().get(0));
+            return Optional.of(page.getValue().getFirst());
 
         } catch (ApiException e) {
             log.error("Error querying guest user by email {}: {}", email, e.getMessage(), e);

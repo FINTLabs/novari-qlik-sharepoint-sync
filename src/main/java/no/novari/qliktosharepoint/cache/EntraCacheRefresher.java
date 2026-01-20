@@ -8,7 +8,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import no.novari.qliktosharepoint.config.GraphProperties;
 import no.novari.qliktosharepoint.service.GraphGroupService;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.ZoneId;
@@ -22,7 +21,6 @@ import java.util.stream.Collectors;
 public class EntraCacheRefresher {
 
     private final GraphServiceClient graph;
-    private final GraphGroupService graphGroupService;
     private final GraphProperties graphProperties;
     private final EntraCache cache;
 
@@ -103,7 +101,7 @@ public class EntraCacheRefresher {
                 return Optional.empty();
             }
 
-            String id = page.getValue().get(0).getId();
+            String id = page.getValue().getFirst().getId();
             return (id == null || id.isBlank()) ? Optional.empty() : Optional.of(id);
 
         } catch (ApiException e) {

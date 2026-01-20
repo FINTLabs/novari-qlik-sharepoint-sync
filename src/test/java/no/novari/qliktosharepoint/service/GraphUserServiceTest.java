@@ -8,7 +8,6 @@ import com.microsoft.graph.models.User;
 import com.microsoft.graph.serviceclient.GraphServiceClient;
 import no.novari.qliktosharepoint.cache.EntraCache;
 import no.novari.qliktosharepoint.config.GraphProperties;
-import no.novari.qliktosharepoint.service.GraphUserService;
 import okhttp3.*;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -79,7 +78,7 @@ class GraphUserServiceTest {
     }
 
     @Test
-    void inviteGuestUser_invitesXUsers_andCachesAll() throws Exception {
+    void inviteGuestUser_invitesXUsers_andCachesAll() {
         int userCount = 7;
 
         GraphServiceClient graph = Mockito.mock(GraphServiceClient.class, Mockito.RETURNS_DEEP_STUBS);

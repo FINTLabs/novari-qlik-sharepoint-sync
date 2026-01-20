@@ -115,7 +115,7 @@ public class QlikUserClient {
             QlikUserListResponse wrapper = new QlikUserListResponse();
 
             if (root.has("data") && root.get("data").isArray()) {
-                wrapper.setData(objectMapper.convertValue(root.get("data"), new TypeReference<List<QlikUserDto>>() {}));
+                wrapper.setData(objectMapper.convertValue(root.get("data"), new TypeReference<>() {}));
                 if (root.has("links")) {
                     wrapper.setLinks(objectMapper.convertValue(root.get("links"), QlikUserListResponse.Links.class));
                 }

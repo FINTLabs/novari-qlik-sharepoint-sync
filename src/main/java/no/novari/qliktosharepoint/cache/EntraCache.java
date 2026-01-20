@@ -63,7 +63,7 @@ public class EntraCache {
 
     public void addMemberToGroup(String groupId, String userId) {
         if (groupId == null || groupId.isBlank() || userId == null || userId.isBlank()) return;
-        groupMemberIds.computeIfAbsent(groupId, k -> ConcurrentHashMap.newKeySet()).add(userId);
+        groupMemberIds.computeIfAbsent(groupId, _ -> ConcurrentHashMap.newKeySet()).add(userId);
     }
 
     public void removeMemberFromGroup(String groupId, String userId) {

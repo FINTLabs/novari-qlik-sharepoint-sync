@@ -169,7 +169,7 @@ public class UserSyncService {
                         userIdByEmail.put(email, userId);
                         entraCache.putGuest(email, userId);
                     })
-                    .whenComplete((ok, ex) -> {
+                    .whenComplete((_, ex) -> {
                         if (ex == null) return;
                         Throwable t = unwrap(ex);
                         if (t instanceof TimeoutException) {
@@ -259,7 +259,7 @@ public class UserSyncService {
                         }
                     }, executor)
                     .orTimeout(10, TimeUnit.MINUTES)
-                    .whenComplete((ok, ex) -> {
+                    .whenComplete((_, ex) -> {
                         if (ex == null) return;
 
                         Throwable t = unwrap(ex);
@@ -284,7 +284,7 @@ public class UserSyncService {
         try {
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
                     .orTimeout(40, TimeUnit.MINUTES)
-                    .whenComplete((ok, ex) -> {
+                    .whenComplete((_, ex) -> {
                         if (ex != null) {
                             Throwable t = unwrap(ex);
                             log.warn("Membership phase completed WITH ERRORS. users={} cause={}",
@@ -316,7 +316,7 @@ public class UserSyncService {
             for (String groupName : entry.getValue()) {
                 String groupId = groupIdByName.get(groupName);
                 if (groupId != null && !groupId.isBlank()) {
-                    desiredMembersByGroupId.computeIfAbsent(groupId, k -> new HashSet<>()).add(userId);
+                    desiredMembersByGroupId.computeIfAbsent(groupId, _ -> new HashSet<>()).add(userId);
                 }
             }
         }
@@ -371,7 +371,7 @@ public class UserSyncService {
                             entraCache.removeMemberFromGroup(groupId, userId);
                         }, executor)
                         .orTimeout(10, TimeUnit.MINUTES)
-                        .whenComplete((ok, ex) -> {
+                        .whenComplete((_, ex) -> {
                             if (ex != null) {
                                 Throwable t = unwrap(ex);
                                 log.error("FAILED to remove userId={} from group '{}' ({}). ErrorMessage={}",
@@ -387,12 +387,12 @@ public class UserSyncService {
         }
 
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
-                .whenComplete((ok, ex) -> {
+                .whenComplete((_, ex) -> {
                     if (ex != null) {
                         Throwable t = unwrap(ex);
                         log.warn("Reconcile finished WITH ERRORS. Ops={} cause={}", futures.size(), t.toString());
                     } else {
-                        if (futures.size() > 0) {
+                        if (!futures.isEmpty()) {
                             log.info("Reconcile finished. Removed {} members", futures.size());
                         } else {
                             log.debug("Reconcile finished. No members removed");
@@ -405,7 +405,6 @@ public class UserSyncService {
 
     private <T> T withRetry(String op, String key, Callable<T> fn) {
         final int maxAttempts = 7;
-        final long baseDelayMs = 500;
 
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
@@ -427,7 +426,7 @@ public class UserSyncService {
                     throw (ex instanceof RuntimeException) ? (RuntimeException) ex : new RuntimeException(ex);
                 }
 
-                long sleep = backoffMs(baseDelayMs, attempt);
+                long sleep = backoffMs(attempt);
                 if (sc != null) {
                     log.warn("{} RETRY key={} status={} attempt={}/{} sleepMs={}",
                             op, key, sc, attempt, maxAttempts, sleep);
@@ -447,15 +446,14 @@ public class UserSyncService {
         if (statusCode != null) {
             if (statusCode == 429) return true;
             if (statusCode == 503 || statusCode == 504) return true;
-            if (statusCode >= 500 && statusCode <= 599) return true;
-            return false;
+            return statusCode >= 500 && statusCode <= 599;
         }
 
         return t instanceof IOException;
     }
 
-    private long backoffMs(long base, int attempt) {
-        long exp = base * (1L << Math.min(6, attempt - 1));
+    private long backoffMs(int attempt) {
+        long exp = 500L * (1L << Math.min(6, attempt - 1));
         long jitter = ThreadLocalRandom.current().nextLong(0, 350);
         return Math.min(30_000, exp + jitter);
     }
@@ -527,17 +525,7 @@ public class UserSyncService {
                 .anyMatch(domain::equals);
     }
 
-    private static class Desired {
-        final Map<String, Set<String>> desiredGroupsByEmail;
-        final Map<String, String> displayNameByEmail;
-        final Set<String> groupsToUse;
-
-        Desired(Map<String, Set<String>> desiredGroupsByEmail,
-                Map<String, String> displayNameByEmail,
-                Set<String> groupsToUse) {
-            this.desiredGroupsByEmail = desiredGroupsByEmail;
-            this.displayNameByEmail = displayNameByEmail;
-            this.groupsToUse = groupsToUse;
-        }
+    private record Desired(Map<String, Set<String>> desiredGroupsByEmail, Map<String, String> displayNameByEmail,
+                           Set<String> groupsToUse) {
     }
 }

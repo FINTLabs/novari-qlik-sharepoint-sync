@@ -1,7 +1,5 @@
 package no.novari.qliktosharepoint.qlik;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import no.novari.qliktosharepoint.config.QlikProperties;
 import okhttp3.mockwebserver.MockResponse;
@@ -100,7 +98,7 @@ class QlikUserClientTest {
         for (int i = 1; i <= nActive; i++) {
             activeUserIds.add("u" + i);
         }
-        enqueueAuditPagesForActiveUsers(activeUserIds, 100);
+        enqueueAuditPagesForActiveUsers(activeUserIds);
 
         List<QlikUserDto> result = client.getAllUsers();
 
@@ -133,7 +131,7 @@ class QlikUserClientTest {
             }
         }
 
-        enqueueAuditPagesForActiveUsers(activeUserIds, 100);
+        enqueueAuditPagesForActiveUsers(activeUserIds);
 
         List<QlikUserDto> result = client.getAllUsers();
 
@@ -156,30 +154,6 @@ class QlikUserClientTest {
         }
         sb.append("],\"links\":{\"self\":{\"href\":\"/api/v1/users\"}}}");
         return sb.toString();
-    }
-
-    private static String auditJson(String userId, boolean active) {
-        if (active) {
-            return """
-            {
-              "data": [
-                {
-                  "id":"a-%s",
-                  "userId":"%s",
-                  "eventType":"com.qlik.user-session.begin",
-                  "eventTime":"2026-01-12T13:02:08.291Z"
-                }
-              ],
-              "links": {"self":{"href":"/api/v1/audits"}}
-            }
-            """.formatted(userId, userId);
-        }
-        return """
-        {
-          "data": [],
-          "links": {"self":{"href":"/api/v1/audits"}}
-        }
-        """;
     }
 
     private static List<String> expectedUserIds(int nActive) {
@@ -223,13 +197,13 @@ class QlikUserClientTest {
                 .setBody(sb.toString());
     }
 
-    private void enqueueAuditPagesForActiveUsers(List<String> activeUserIds, int pageSize) {
+    private void enqueueAuditPagesForActiveUsers(List<String> activeUserIds) {
         int total = activeUserIds.size();
-        int pages = (total + pageSize - 1) / pageSize;
+        int pages = (total + 100 - 1) / 100;
 
         for (int p = 0; p < pages; p++) {
-            int from = p * pageSize;
-            int to = Math.min(from + pageSize, total);
+            int from = p * 100;
+            int to = Math.min(from + 100, total);
 
             List<String> pageUserIds = activeUserIds.subList(from, to);
 

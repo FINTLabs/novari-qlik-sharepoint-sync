@@ -10,9 +10,7 @@ import no.novari.qliktosharepoint.cache.EntraCache;
 
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -136,13 +134,11 @@ public class GraphGroupService {
     }
 
     public CompletableFuture<Void> removeUserFromGroupAsync(String userId, String groupId) {
-        return CompletableFuture.runAsync(() -> {
-            graph.groups()
-                    .byGroupId(groupId)
-                    .members()
-                    .byDirectoryObjectId(userId)
-                    .ref()
-                    .delete();
-        }, executor);
+        return CompletableFuture.runAsync(() -> graph.groups()
+                .byGroupId(groupId)
+                .members()
+                .byDirectoryObjectId(userId)
+                .ref()
+                .delete(), executor);
     }
 }
