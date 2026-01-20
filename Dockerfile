@@ -1,0 +1,16 @@
+FROM gradle:9.2.1-jdk23 AS builder
+WORKDIR /app
+
+COPY . .
+RUN gradle --no-daemon bootJar
+
+FROM gcr.io/distroless/java23-debian12
+ENV TZ="Europe/Oslo"
+ENV JAVA_TOOL_OPTIONS="-XX:+ExitOnOutOfMemoryError"
+
+WORKDIR /data
+COPY --from=builder /app/build/libs/*.jar /data/app.jar
+
+USER nonroot
+EXPOSE 8080
+CMD ["app.jar"]
