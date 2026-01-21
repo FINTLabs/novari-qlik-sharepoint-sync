@@ -6,7 +6,7 @@ metadata:
     app.kubernetes.io/name: novari-qlik-sharepoint-sync
     app.kubernetes.io/component: backend
     app.kubernetes.io/instance: novari-qlik-sharepoint-sync
-    app.kubernetes.io/part-of: fintlabs-no
+    app.kubernetes.io/part-of: qlik
     fintlabs.no/team: analyse
     fintlabs.no/org-id: fintlabs.no
 spec:
@@ -14,9 +14,12 @@ spec:
   orgId: fintlabs.no
   image: ghcr.io/fintlabs/novari-qlik-sharepoint-sync
   imagePullPolicy: Always
-  imagePullSecrets: 
-    - ghcr
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   resources:
     limits:
       memory: "1024Mi"
@@ -24,10 +27,6 @@ spec:
     requests:
       memory: "320Mi"
       cpu: "100m"
-  probes:
-    readiness:
-      path: /actuator/health
-      port: 8080
   env: []
   envFrom:
     - secretRef:
