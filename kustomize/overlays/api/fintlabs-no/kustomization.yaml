@@ -3,10 +3,6 @@ kind: Kustomization
 namespace: fintlabs-no
 resources:
   - ../../../base
-labels:
-  - pairs:
-      app.kubernetes.io/instance: fint-qlik-sync-sharepoint
-      fintlabs.no/org-id: fintlabs.no
 patches:
   - patch: |-
       - op: replace
