@@ -3,15 +3,11 @@ kind: Kustomization
 namespace: fintlabs-no
 resources:
   - ../../../base
-labels:
-  - pairs:
-      app.kubernetes.io/instance: fint-qlik-sync-sharepoint
-      fintlabs.no/org-id: fintlabs.no
 patches:
   - patch: |-
       - op: replace
         path: "/spec/itemPath"
-        value: "vaults/aks-api-vault/items/fint-qlik-sync-sharepoint"
+        value: "vaults/aks-api-vault/items/novari-qlik-sharepoint-sync"
     target:
       kind: OnePasswordItem
-      name: fint-qlik-sync-sharepoint
+      name: novari-qlik-sharepoint-sync

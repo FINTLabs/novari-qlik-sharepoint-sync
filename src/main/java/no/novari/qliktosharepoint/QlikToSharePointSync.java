@@ -8,10 +8,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 @ConfigurationPropertiesScan
 @SpringBootApplication
-public class QlikToSharepointApplication {
+public class QlikToSharePointSync {
 
     public static void main(String[] args) {
-        SpringApplication.run(QlikToSharepointApplication.class, args);
+        SpringApplication.run(QlikToSharePointSync.class, args);
     }
 
 }
