@@ -14,18 +14,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class UserSyncScheduler {
 
     private final UserSyncService userSyncService;
-    private final AtomicBoolean running = new AtomicBoolean(false);
-    private final EntraCacheRefresher entraCacheRefresher;
+    public final AtomicBoolean running = new AtomicBoolean(false);
 
-    @Scheduled(initialDelayString = "PT5S", fixedDelayString = "PT5M")
+    @Scheduled(initialDelayString = "PT5S", fixedDelayString = "PT20S")
     public void scheduledRun() {
         if (!running.compareAndSet(false, true)) {
             log.warn("Previous sync still running - skipping this run");
             return;
         }
         try {
-            entraCacheRefresher.refreshCache();
-            userSyncService.runSyncOnce();
+            userSyncService.syncAll();
         } finally {
             running.set(false);
         }

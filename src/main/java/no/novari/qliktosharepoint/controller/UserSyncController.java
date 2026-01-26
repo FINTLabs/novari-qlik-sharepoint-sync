@@ -17,7 +17,7 @@ public class UserSyncController {
 
     @PostMapping("/qlik-users")
     public ResponseEntity<String> syncQlikUsers() {
-        userSyncService.runSyncOnce();
+        userSyncService.syncAll();
         return ResponseEntity.ok("Sync started/finished");
     }
 }
