@@ -16,7 +16,7 @@ public class UserSyncScheduler {
     private final UserSyncService userSyncService;
     public final AtomicBoolean running = new AtomicBoolean(false);
 
-    @Scheduled(initialDelayString = "PT5S", fixedDelayString = "PT20S")
+    @Scheduled(initialDelayString = "PT5S", fixedDelayString = "PT5M")
     public void scheduledRun() {
         if (!running.compareAndSet(false, true)) {
             log.warn("Previous sync still running - skipping this run");
