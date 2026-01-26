@@ -4,10 +4,14 @@ import com.microsoft.graph.models.DirectoryObject;
 import com.microsoft.graph.models.User;
 import com.microsoft.graph.serviceclient.GraphServiceClient;
 import com.microsoft.kiota.ApiException;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import no.novari.qliktosharepoint.config.GraphProperties;
 import no.novari.qliktosharepoint.service.GraphGroupService;
+import no.novari.qliktosharepoint.service.UserSyncScheduler;
+import no.novari.qliktosharepoint.service.UserSyncService;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.ZoneId;
@@ -23,9 +27,22 @@ public class EntraCacheRefresher {
     private final GraphServiceClient graph;
     private final GraphProperties graphProperties;
     private final EntraCache cache;
+    private final UserSyncScheduler userSyncScheduler;
+
+  @Scheduled(fixedDelayString = "PT12H")
+  public void refreshCacheScheduled() {
+    try {
+      userSyncScheduler.running.set(true);
+          refreshCache();
+        } catch (Exception e) {
+          log.error("Failed refreshing Entra cache. Error {}", e.getMessage());
+        } finally {
+          userSyncScheduler.running.set(false);
+        }
+    }
 
     public void refreshCache() {
-        log.debug("Refreshing cache of Entra objects (guests + groups with memberships) ...");
+        log.info("Refreshing cache of Entra objects (guests + groups with memberships)");
 
         Map<String, String> groupIdByName = new HashMap<>();
         Map<String, Set<String>> membersByGroupId = new HashMap<>();
@@ -74,10 +91,10 @@ public class EntraCacheRefresher {
         } catch (Exception e) {
             log.error("Entra cache refresh FAILED. Keeping existing cache. Cause={}", e.getMessage(), e);
         }
-        log.debug(
-                "Entra cache refreshed guests={} groups={} lastRefresh={}",
+        log.info(
+                "Entra cache refreshed guests={} groups={} at {}",
                 guestIdByEmail.size(),
-                membersByGroupId.size(),
+                groupIdByName.size(),
                 cache.getLastRefresh()
                         .truncatedTo(ChronoUnit.SECONDS)
                         .atZone(ZoneId.systemDefault())
@@ -152,7 +169,7 @@ public class EntraCacheRefresher {
     }
 
     private void refreshAllGuestsInto(Map<String, String> guestIdByEmail) {
-        log.debug("Refreshing ALL guest users into cache...");
+        log.info("Refreshing ALL guest users into cache...");
         long count = 0;
         String next = null;
 
@@ -180,7 +197,7 @@ public class EntraCacheRefresher {
             next = page.getOdataNextLink();
         } while (next != null);
 
-        log.debug("Fetched {} guest users", count);
+        log.info("Fetched {} guest users", count);
 
     }
 }

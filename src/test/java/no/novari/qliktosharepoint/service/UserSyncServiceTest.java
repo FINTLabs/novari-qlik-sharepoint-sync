@@ -6,7 +6,6 @@ import no.novari.qliktosharepoint.config.QlikProperties;
 import no.novari.qliktosharepoint.qlik.AssignedGroupDto;
 import no.novari.qliktosharepoint.qlik.QlikUserClient;
 import no.novari.qliktosharepoint.qlik.QlikUserDto;
-import no.novari.qliktosharepoint.service.*;
 import org.junit.jupiter.api.Test;
 
 import java.util.*;
@@ -90,7 +89,7 @@ class UserSyncServiceTest {
                 entraCache
         );
 
-        svc.runSyncOnce();
+        svc.syncAll();
 
         // expectedIncluded = antall federated (idp)
         verify(graphUserService, times(expectedIncluded))

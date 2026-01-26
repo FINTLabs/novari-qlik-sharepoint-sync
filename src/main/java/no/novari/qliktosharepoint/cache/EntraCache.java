@@ -24,7 +24,27 @@ public class EntraCache {
         guestIdByEmail.clear();
         groupMemberIds.clear();
         groupIdByDisplayName.clear();
+    }
 
+    public synchronized void replaceAll(
+            Map<String, String> guestsByEmail,
+            Map<String, String> groupIdByName,
+            Map<String, Set<String>> membersByGroupIdOrNull
+    ) {
+        guestIdByEmail.clear();
+        if (guestsByEmail != null) {
+            guestsByEmail.forEach(this::putGuest);
+        }
+
+        groupIdByDisplayName.clear();
+        if (groupIdByName != null) {
+            groupIdByName.forEach(this::putGroupIdByDisplayName);
+        }
+
+        if (membersByGroupIdOrNull != null) {
+            groupMemberIds.clear();
+            membersByGroupIdOrNull.forEach(this::setGroupMembers);
+        }
     }
 
     public void putGroupIdByDisplayName(String displayName, String groupId) {

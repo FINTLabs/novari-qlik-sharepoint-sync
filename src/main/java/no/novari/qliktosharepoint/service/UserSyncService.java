@@ -49,7 +49,7 @@ public class UserSyncService {
         executor.shutdown();
     }
 
-    public void runSyncOnce() {
+    public void syncAll() {
         List<QlikUserDto> users = qlikUserClient.getAllUsers();
         if (users == null) {
             log.warn("Skipping sync/reconcile because Qlik fetch failed. Will retry next run.");

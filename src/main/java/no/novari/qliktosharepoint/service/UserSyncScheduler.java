@@ -14,8 +14,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class UserSyncScheduler {
 
     private final UserSyncService userSyncService;
-    private final AtomicBoolean running = new AtomicBoolean(false);
-    private final EntraCacheRefresher entraCacheRefresher;
+    public final AtomicBoolean running = new AtomicBoolean(false);
 
     @Scheduled(initialDelayString = "PT5S", fixedDelayString = "PT5M")
     public void scheduledRun() {
@@ -24,8 +23,7 @@ public class UserSyncScheduler {
             return;
         }
         try {
-            entraCacheRefresher.refreshCache();
-            userSyncService.runSyncOnce();
+            userSyncService.syncAll();
         } finally {
             running.set(false);
         }
