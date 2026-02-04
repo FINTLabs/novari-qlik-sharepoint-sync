@@ -35,11 +35,9 @@ class GraphUserServiceTest {
         OkHttpClient ok = Mockito.mock(OkHttpClient.class);
         ObjectMapper om = new ObjectMapper();
 
-        // token mock
         when(credential.getToken(any(TokenRequestContext.class)))
                 .thenReturn(Mono.just(new AccessToken("tok", OffsetDateTime.now().plusHours(1))));
 
-        // OkHttp response mock (200 + invitedUser.id)
         String responseJson = """
             {"invitedUser":{"id":"guest-id"}}
         """;
@@ -63,7 +61,6 @@ class GraphUserServiceTest {
         assertThat(out.getId()).isEqualTo("guest-id");
         verify(entraCache).putGuest("a@b.com", "guest-id");
 
-        // Verifiser at vi faktisk POSTer til invitations med Authorization-header
         ArgumentCaptor<Request> reqCap = ArgumentCaptor.forClass(Request.class);
         verify(ok).newCall(reqCap.capture());
 
@@ -73,7 +70,6 @@ class GraphUserServiceTest {
         assertThat(sent.header("Authorization")).isEqualTo("Bearer tok");
         assertThat(sent.header("Accept")).isEqualTo("application/json");
 
-        // Ikke lenger relevant:
         verify(graph, never()).invitations();
     }
 
@@ -94,17 +90,14 @@ class GraphUserServiceTest {
         when(credential.getToken(any(TokenRequestContext.class)))
                 .thenReturn(Mono.just(new AccessToken("tok", OffsetDateTime.now().plusHours(1))));
 
-        // Vi lager en "call" per request som returnerer forskjellig JSON basert på request-body
         when(ok.newCall(any(Request.class))).thenAnswer(inv -> {
             Request req = inv.getArgument(0);
 
-            // vi må lese request-body (okhttp RequestBody kan skrives til Buffer)
             Buffer buf = new Buffer();
             assertThat(req.body()).isNotNull();
             req.body().writeTo(buf);
             String body = buf.readUtf8();
 
-            // body inneholder invitedUserEmailAddress
             String email = extractEmailFromInviteBody(body);
 
             String responseJson = "{\"invitedUser\":{\"id\":\"guest-" + email + "\"}}";
@@ -144,7 +137,6 @@ class GraphUserServiceTest {
     }
 
     private static String extractEmailFromInviteBody(String jsonBody) {
-        // finner "invitedUserEmailAddress":"...".
         int idx = jsonBody.indexOf("\"invitedUserEmailAddress\"");
         if (idx < 0) return null;
 

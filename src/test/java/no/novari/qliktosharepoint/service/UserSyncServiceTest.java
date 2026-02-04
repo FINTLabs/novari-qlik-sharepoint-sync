@@ -34,23 +34,17 @@ class UserSyncServiceTest {
         GraphProperties graphProperties = mock(GraphProperties.class);
         EntraCache entraCache = mock(EntraCache.class);
 
-        // NB: UserSyncService bruker graphProperties.getGroupMappings() som "managedGroupNames"
         when(graphProperties.getGroupMappings()).thenReturn(List.of("GroupA"));
 
-        // Ikke kjør reconcile i testen
         when(qlikProperties.isCleanupRemoveMemberships()).thenReturn(false);
         when(qlikProperties.getExcludedEmailDomains()).thenReturn(List.of());
 
-        // groupId kommer fra cache i ny kode
         when(entraCache.getGroupIdByDisplayName("GroupA")).thenReturn("groupA-id");
 
-        // ingen medlemmer i utgangspunktet
         when(entraCache.getGroupMembers("groupA-id")).thenReturn(Set.of());
 
-        // ingen guests cached → må "opprettes"
         when(entraCache.getGuestIdByEmail(anyString())).thenReturn(null);
 
-        // Qlik users
         List<QlikUserDto> users = new ArrayList<>();
         for (int i = 1; i <= totalUsers; i++) {
             boolean included = isIncluded.test(i);
@@ -65,17 +59,14 @@ class UserSyncServiceTest {
                     : List.of(assignedGroup("local")));
             users.add(u);
         }
-        when(qlikUserClient.getAllUsers()).thenReturn(users);
+        when(qlikUserClient.getAllUsersRecent90UsingCache400()).thenReturn(users);
 
-        // mappingService må gi groupName som finnes i groupIdByName
         when(mappingService.resolveTargetAadGroupNames(any(QlikUserDto.class)))
                 .thenReturn(Set.of("GroupA"));
 
-        // user creation
         when(graphUserService.ensureGuestUserId(anyString(), anyString()))
                 .thenAnswer(inv -> "entra-" + inv.getArgument(0));
 
-        // membership add (kalles inne i en runAsync, men join() brukes)
         when(graphGroupService.ensureUserInGroupsAsync(anyString(), anyCollection()))
                 .thenReturn(CompletableFuture.completedFuture(null));
 
@@ -91,11 +82,9 @@ class UserSyncServiceTest {
 
         svc.syncAll();
 
-        // expectedIncluded = antall federated (idp)
         verify(graphUserService, times(expectedIncluded))
                 .ensureGuestUserId(anyString(), anyString());
 
-        // Membership kalles for alle included (én gruppe per user i denne testen)
         verify(graphGroupService, times(expectedIncluded))
                 .ensureUserInGroupsAsync(anyString(), anyCollection());
 
