@@ -2,12 +2,15 @@ novari:
   qlik:
     base-url: ${qlik-base-url}
     api-token: ${qlik-api-token}
+    api-page-size: 100
     audit-endpoint: "/api/v1/audits"
     audit-days-back: 400
+    audit-event-type: "com.qlik.user-session.begin"
     users-endpoint: "/api/v1/users"
     excluded-email-domains: ${excluded-email-domains:}
     cleanup-delete-guest-users: false
     cleanup-remove-memberships: true
+    max-in-memory-size: 256
 
   graph:
     base-url: "https://graph.microsoft.com/v1.0"

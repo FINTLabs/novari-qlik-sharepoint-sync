@@ -15,9 +15,12 @@ import java.util.List;
 public class QlikProperties {
     private String baseUrl;
     private String apiToken;
+    private Integer apiPageSize;
     private String usersEndpoint;
     private String auditEndpoint;
     private Integer auditDaysBack;
+    private String auditEventType;
+    private Integer maxInMemorySize;
     private List<String> excludedEmailDomains = new ArrayList<>();
     private boolean cleanupDeleteGuestUsers;
     private boolean cleanupRemoveMemberships;

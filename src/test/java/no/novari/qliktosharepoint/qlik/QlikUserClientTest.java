@@ -24,7 +24,7 @@ class QlikUserClientTest {
         server = new MockWebServer();
         server.start();
 
-        String base = server.url("/").toString(); // e.g. http://localhost:12345/
+        String base = server.url("/").toString();
 
         QlikProperties props = new QlikProperties();
         props.setBaseUrl(base.substring(0, base.length() - 1));
@@ -32,8 +32,12 @@ class QlikUserClientTest {
         props.setUsersEndpoint("/api/v1/users");
         props.setAuditEndpoint("/api/v1/audits");
         props.setAuditDaysBack(400);
+        props.setApiPageSize(100);
+        props.setMaxInMemorySize(256);
 
         client = new QlikUserClient(props, WebClient.builder(), new ObjectMapper());
+
+
     }
 
     @AfterEach
@@ -78,7 +82,7 @@ class QlikUserClientTest {
                     }
                 """));
 
-        List<QlikUserDto> result = client.getAllUsers();
+        List<QlikUserDto> result = client.getAllUsersRecent90UsingCache400();
 
         assertThat(result).isNotNull();
         assertThat(result).extracting(QlikUserDto::getId).containsExactly("u1");
@@ -100,7 +104,7 @@ class QlikUserClientTest {
         }
         enqueueAuditPagesForActiveUsers(activeUserIds);
 
-        List<QlikUserDto> result = client.getAllUsers();
+        List<QlikUserDto> result = client.getAllUsersRecent90UsingCache400();
 
         assertThat(result).isNotNull();
         assertThat(result).hasSize(nActive);
@@ -133,7 +137,7 @@ class QlikUserClientTest {
 
         enqueueAuditPagesForActiveUsers(activeUserIds);
 
-        List<QlikUserDto> result = client.getAllUsers();
+        List<QlikUserDto> result = client.getAllUsersRecent90UsingCache400();
 
         assertThat(result).isNotNull();
         assertThat(result).hasSize(expectedActive);

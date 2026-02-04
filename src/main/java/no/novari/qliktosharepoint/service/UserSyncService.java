@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -30,6 +31,7 @@ public class UserSyncService {
     private final QlikProperties qlikProperties;
     private final GraphProperties graphProperties;
     private final EntraCache entraCache;
+
     private final ExecutorService executor = Executors.newFixedThreadPool(24);
     private final Semaphore inviteLimit = new Semaphore(6);
     private final Semaphore addLimit = new Semaphore(16);
@@ -50,9 +52,23 @@ public class UserSyncService {
     }
 
     public void syncAll() {
-        List<QlikUserDto> users = qlikUserClient.getAllUsers();
+        syncRecent90();
+    }
+
+    public void syncRecent90() {
+        syncInternal("RECENT_90", qlikUserClient::getAllUsersRecent90UsingCache400);
+    }
+
+    public void syncFull400() {
+        syncInternal("FULL_400", qlikUserClient::refreshCacheFull400AndGetAllUsers);
+    }
+
+   private void syncInternal(String tag, Supplier<List<QlikUserDto>> qlikFetchFn) {
+        long t0 = System.currentTimeMillis();
+
+        List<QlikUserDto> users = qlikFetchFn.get();
         if (users == null) {
-            log.warn("Skipping sync/reconcile because Qlik fetch failed. Will retry next run.");
+            log.warn("Skipping sync/reconcile because Qlik fetch failed. tag={}", tag);
             return;
         }
 
@@ -63,7 +79,7 @@ public class UserSyncService {
         int groupsFound = desired.groupsToUse.size();
 
         if (usersFound == 0) {
-            log.info("No users to sync after filters. Done. usersFound=0 groupsFound={}", groupsFound);
+            log.info("No users to sync after filters. Done. tag={} usersFound=0 groupsFound={}", tag, groupsFound);
             return;
         }
 
@@ -77,14 +93,16 @@ public class UserSyncService {
         runMembershipsAsync(desired.desiredGroupsByEmail, userIdByEmail, groupIdByName, added, skipped, failed);
 
         if (qlikProperties.isCleanupRemoveMemberships()) {
-            Map<String, Set<String>> desiredMembersByGroupId = buildDesiredMembersByGroupId(desired.desiredGroupsByEmail, userIdByEmail, groupIdByName);
+            Map<String, Set<String>> desiredMembersByGroupId =
+                    buildDesiredMembersByGroupId(desired.desiredGroupsByEmail, userIdByEmail, groupIdByName);
             reconcileGroups(desired.groupsToUse, desiredMembersByGroupId, groupIdByName);
         } else {
-            log.warn("Cleanup/reconcile disabled by config. To allow cleanup, enable this in config");
+            log.warn("Cleanup/reconcile disabled by config. tag={}", tag);
         }
 
-        log.info("Sync summary usersFound={} groupsFound={} added={} skipped={} failed={}",
-                usersFound, groupsFound, added.get(), skipped.get(), failed.get());
+        long ms = System.currentTimeMillis() - t0;
+        log.info("Sync summary tag={} usersFound={} groupsFound={} added={} skipped={} failed={} elapsedMs={}",
+                tag, usersFound, groupsFound, added.get(), skipped.get(), failed.get(), ms);
     }
 
     private Desired buildDesired(List<QlikUserDto> users, Set<String> managedGroupNames) {
@@ -192,7 +210,6 @@ public class UserSyncService {
         } else {
             log.debug("Guest phase: cached={} created=0 total={}", cachedGuests, emails.size());
         }
-
 
         try {
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
@@ -397,7 +414,6 @@ public class UserSyncService {
                         } else {
                             log.debug("Reconcile finished. No members removed");
                         }
-
                     }
                 })
                 .join();
@@ -525,7 +541,7 @@ public class UserSyncService {
                 .anyMatch(domain::equals);
     }
 
-    private record Desired(Map<String, Set<String>> desiredGroupsByEmail, Map<String, String> displayNameByEmail,
-                           Set<String> groupsToUse) {
-    }
+    private record Desired(Map<String, Set<String>> desiredGroupsByEmail,
+                           Map<String, String> displayNameByEmail,
+                           Set<String> groupsToUse) {}
 }
