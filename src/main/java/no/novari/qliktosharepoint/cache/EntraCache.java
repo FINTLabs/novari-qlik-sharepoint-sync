@@ -26,27 +26,6 @@ public class EntraCache {
         groupIdByDisplayName.clear();
     }
 
-    public synchronized void replaceAll(
-            Map<String, String> guestsByEmail,
-            Map<String, String> groupIdByName,
-            Map<String, Set<String>> membersByGroupIdOrNull
-    ) {
-        guestIdByEmail.clear();
-        if (guestsByEmail != null) {
-            guestsByEmail.forEach(this::putGuest);
-        }
-
-        groupIdByDisplayName.clear();
-        if (groupIdByName != null) {
-            groupIdByName.forEach(this::putGroupIdByDisplayName);
-        }
-
-        if (membersByGroupIdOrNull != null) {
-            groupMemberIds.clear();
-            membersByGroupIdOrNull.forEach(this::setGroupMembers);
-        }
-    }
-
     public void putGroupIdByDisplayName(String displayName, String groupId) {
         if (displayName == null) return;
         String key = displayName.trim();
@@ -90,6 +69,14 @@ public class EntraCache {
         if (groupId == null || groupId.isBlank() || userId == null || userId.isBlank()) return;
         Set<String> set = groupMemberIds.get(groupId);
         if (set != null) set.remove(userId);
+    }
+
+    public int totalMembersAcrossAllGroups() {
+        int total = 0;
+        for (Set<String> members : groupMemberIds.values()) {
+            if (members != null) total += members.size();
+        }
+        return total;
     }
 
     public void markRefreshed() {

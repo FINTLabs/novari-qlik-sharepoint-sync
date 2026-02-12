@@ -19,5 +19,6 @@ public class GraphProperties {
     private String clientSecret;
     private String inviteRedirectUrl;
     private String baseUrl;
+    private String scope;
     private List<String> groupMappings = new ArrayList<>();
 }

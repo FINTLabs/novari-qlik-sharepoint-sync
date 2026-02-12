@@ -14,6 +14,7 @@ novari:
 
   graph:
     base-url: "https://graph.microsoft.com/v1.0"
+    scope: "https://graph.microsoft.com/.default"
     tenant-id: ${tenant-id}
     client-id: ${client-id}
     client-secret: ${client-secret}

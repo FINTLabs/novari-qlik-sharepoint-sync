@@ -23,7 +23,6 @@ import java.util.concurrent.ThreadLocalRandom;
 @RequiredArgsConstructor
 public class GraphUserService {
 
-    private static final String GRAPH_SCOPE = "https://graph.microsoft.com/.default";
     private static final String INVITATIONS_URL = "https://graph.microsoft.com/v1.0/invitations";
     private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
 
@@ -36,19 +35,15 @@ public class GraphUserService {
     private final ObjectMapper objectMapper;
 
     public Optional<User> findGuestByEmail(String email) {
-        if (email == null || email.isBlank()) {
-            return Optional.empty();
-        }
+        if (email == null || email.isBlank()) return Optional.empty();
 
         String filter = "userType eq 'Guest' and mail eq '" + email.replace("'", "''") + "'";
 
         try {
-            var page = graphServiceClient
-                    .users()
-                    .get(requestConfiguration -> {
-                        requestConfiguration.queryParameters.filter = filter;
-                        requestConfiguration.queryParameters.top = 1;
-                    });
+            var page = graphServiceClient.users().get(requestConfiguration -> {
+                requestConfiguration.queryParameters.filter = filter;
+                requestConfiguration.queryParameters.top = 1;
+            });
 
             if (page == null || page.getValue() == null || page.getValue().isEmpty()) {
                 return Optional.empty();
@@ -63,24 +58,18 @@ public class GraphUserService {
     }
 
     public String ensureGuestUserId(String email, String displayName) {
-        if (email == null || email.isBlank()) {
-            throw new IllegalArgumentException("email is blank");
-        }
+        if (email == null || email.isBlank()) throw new IllegalArgumentException("email is blank");
 
         String normalizedEmail = email.trim().toLowerCase();
 
         String cachedUserId = entraCache.getGuestIdByEmail(normalizedEmail);
-        if (cachedUserId != null && !cachedUserId.isBlank()) {
-            return cachedUserId;
-        }
+        if (cachedUserId != null && !cachedUserId.isBlank()) return cachedUserId;
 
-        User invited = inviteGuestUser(normalizedEmail, displayName);
+        User invited = inviteGuestUserWithRetry(normalizedEmail, displayName);
 
         String userId = invited != null ? invited.getId() : null;
         if (userId == null || userId.isBlank()) {
-            userId = findGuestByEmail(normalizedEmail)
-                    .map(User::getId)
-                    .orElse(null);
+            userId = findGuestByEmail(normalizedEmail).map(User::getId).orElse(null);
         }
 
         if (userId == null || userId.isBlank()) {
@@ -113,17 +102,12 @@ public class GraphUserService {
                 }
 
                 long sleepMs = backoffMs(baseBackoffMs, attempt);
-                if (te.retryAfterMs > 0) {
-                    sleepMs = Math.max(sleepMs, te.retryAfterMs);
-                }
+                if (te.retryAfterMs > 0) sleepMs = Math.max(sleepMs, te.retryAfterMs);
 
                 log.warn("Invite guest RETRY email={} attempt={}/{} status={} retryAfterMs={} sleepMs={}",
                         email, attempt, maxAttempts, te.statusCode, te.retryAfterMs, sleepMs);
 
                 sleepQuietly(sleepMs);
-
-            } catch (RuntimeException re) {
-                throw re;
             }
         }
 
@@ -177,17 +161,16 @@ public class GraphUserService {
 
         } catch (IOException ioe) {
             throw new GraphThrottleOrTransientException(0, 0, "IO error: " + ioe.getMessage(), ioe);
-
         } catch (GraphThrottleOrTransientException te) {
             throw te;
-
         } catch (Exception e) {
             throw new RuntimeException("Invite guest failed (unexpected) email=" + email + " msg=" + e.getMessage(), e);
         }
     }
 
     private String acquireToken() {
-        var tok = graphCredential.getToken(new com.azure.core.credential.TokenRequestContext().addScopes(GRAPH_SCOPE))
+        String scope = graphProperties.getScope();
+        var tok = graphCredential.getToken(new com.azure.core.credential.TokenRequestContext().addScopes(scope))
                 .block(java.time.Duration.ofSeconds(30));
         if (tok == null || tok.getToken() == null || tok.getToken().isBlank()) {
             throw new IllegalStateException("Failed to acquire Graph token");
