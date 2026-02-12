@@ -25,8 +25,7 @@ public class GraphClientConfig {
     @Bean
     public GraphServiceClient graphServiceClient() {
         log.debug("Starting PostConstruct of GraphServiceClient");
-        String[] scopes = new String[]{"https://graph.microsoft.com/.default"};
-
+    String[] scopes = new String[] {graphProperties.getScope()};
 
         ClientSecretCredential credential = new ClientSecretCredentialBuilder()
                 .clientId(graphProperties.getClientId())

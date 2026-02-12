@@ -7,14 +7,19 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.netty.channel.ChannelOption;
+import io.netty.handler.timeout.ReadTimeoutHandler;
+import io.netty.handler.timeout.WriteTimeoutHandler;
 import lombok.extern.slf4j.Slf4j;
 import no.novari.qliktosharepoint.config.QlikProperties;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.util.UriBuilder;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
+import reactor.netty.resources.ConnectionProvider;
 
 import java.io.InputStream;
 import java.net.URI;
@@ -24,6 +29,7 @@ import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 @Slf4j
@@ -52,6 +58,7 @@ public class QlikUserClient {
 
     private volatile Instant lastRecentRefreshAtUtc;
     private volatile Instant lastFullRefreshAtUtc;
+    private volatile int lastFullDaysBack;
 
     public QlikUserClient(QlikProperties properties,
                           WebClient.Builder webClientBuilder,
@@ -62,13 +69,25 @@ public class QlikUserClient {
         int mb = Math.max(1, properties.getMaxInMemorySize());
         int maxBytes = mb * 1024 * 1024;
 
-        var strategies = org.springframework.web.reactive.function.client.ExchangeStrategies.builder()
+        var strategies = ExchangeStrategies.builder()
                 .codecs(c -> c.defaultCodecs().maxInMemorySize(maxBytes))
                 .build();
 
-        HttpClient reactorHttp = HttpClient.create()
+        ConnectionProvider provider = ConnectionProvider.builder("qlik-pool")
+                .maxConnections(50)
+                .maxIdleTime(Duration.ofSeconds(240))
+                .maxLifeTime(Duration.ofMinutes(10))
+                .evictInBackground(Duration.ofSeconds(30))
+                .build();
+
+        HttpClient reactorHttp = HttpClient.create(provider)
                 .compress(true)
-                .responseTimeout(Duration.ofSeconds(120));
+                .responseTimeout(Duration.ofSeconds(180))
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 30_000)
+                .doOnConnected(conn -> conn
+                        .addHandlerLast(new ReadTimeoutHandler(180))
+                        .addHandlerLast(new WriteTimeoutHandler(30))
+                );
 
         this.webClient = webClientBuilder
                 .baseUrl(properties.getBaseUrl())
@@ -92,6 +111,8 @@ public class QlikUserClient {
         LocalDate to = LocalDate.now(ZoneOffset.UTC);
         LocalDate from = to.minusDays(RECENT_DAYS - 1);
 
+        log.info("Getting last logon date from Audit resent. From {} - To {}", from, to);
+
         AuditResult recent = fetchRecentBulk(from, to);
 
         for (var e : recent.lastByUser.entrySet()) {
@@ -113,10 +134,13 @@ public class QlikUserClient {
         if (allUsers == null) return null;
 
         int daysBack = Math.max(properties.getAuditDaysBack(), RECENT_DAYS);
+        lastFullDaysBack = daysBack;
 
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
         LocalDate fullFrom = today.minusDays(daysBack);
         LocalDate recentFrom = today.minusDays(RECENT_DAYS - 1);
+
+        log.info("Getting last logon date from Audit. From {} - To {}", recentFrom, today);
 
         AuditResult recent = fetchRecentBulk(recentFrom, today);
         for (var e : recent.lastByUser.entrySet()) {
@@ -129,7 +153,6 @@ public class QlikUserClient {
         Set<String> userIds = extractUserIds(allUsers);
         Set<String> missing = new HashSet<>(userIds);
         missing.removeAll(activeWithin400.keySet());
-        int missingBefore = missing.size();
 
         LocalDate archiveTo = recentFrom.minusDays(1);
         if (!missing.isEmpty() && !fullFrom.isAfter(archiveTo)) {
@@ -138,14 +161,12 @@ public class QlikUserClient {
         }
 
         Instant cutoff = fullFrom.atStartOfDay(ZoneOffset.UTC).toInstant();
-        int beforeTrim = activeWithin400.size();
         activeWithin400.entrySet().removeIf(e -> e.getValue() == null || e.getValue().isBefore(cutoff));
-        int afterTrim = activeWithin400.size();
 
         lastFullRefreshAtUtc = Instant.now();
 
-        log.info("AUDIT_FULL done complete={} daysBack={} recentRange={}..{} missingBeforeArchive={} cacheBeforeTrim={} cacheAfterTrim={}",
-                complete, daysBack, recentFrom, today, missingBefore, beforeTrim, afterTrim);
+        log.info("AUDIT_FULL complete={} daysBack={} recentRange={}..{}",
+                complete, daysBack, recentFrom, today);
 
         if (!complete) {
             log.warn("AUDIT_FULL incomplete -> returning UNFILTERED users to avoid false negatives. cacheSize={}", activeWithin400.size());
@@ -175,6 +196,7 @@ public class QlikUserClient {
             nextUrl = nextHrefOrNull(page.getLinks());
         }
 
+        log.info("Found {} Qlik users", allUsers.size());
         return allUsers;
     }
 
@@ -251,22 +273,18 @@ public class QlikUserClient {
         }
 
         int after = allUsers.size();
+        int inactive = before - after;
 
-        log.info("Users filtered mode={} qlikUsersTotal={} blankId={} included={} filteredOut={} cacheSize={} lastRecent={} lastFull={}",
-                modeTag, before, blank, after, (before - after), activeWithin400.size(),
-                lastRecentRefreshAtUtc, lastFullRefreshAtUtc);
+        if (modeTag != null && modeTag.startsWith("FULL_")) {
+            int daysBack = (lastFullDaysBack > 0) ? lastFullDaysBack : Math.max(properties.getAuditDaysBack(), RECENT_DAYS);
+            log.info("Of the {} users in Qlik Cloud, {} users are considered active. {} users have not logged in within the last {} days, and will if needed, be removed from the respective groups",
+                    before, after, inactive, daysBack);
+        }
 
         return allUsers;
     }
 
-    private static class AuditResult {
-        final boolean complete;
-        final Map<String, Instant> lastByUser;
-
-        AuditResult(boolean complete, Map<String, Instant> lastByUser) {
-            this.complete = complete;
-            this.lastByUser = lastByUser;
-        }
+    private record AuditResult(boolean complete, Map<String, Instant> lastByUser) {
     }
 
     private AuditResult fetchRecentBulk(LocalDate fromInclusive, LocalDate toInclusive) {
@@ -337,7 +355,7 @@ public class QlikUserClient {
             }
         }
 
-        log.info("Qlik audit recent done complete={} pages={} eventsScanned={} usersFound={} range={}..{}",
+        log.info("Qlik audit recent finished {}. Parsed pages={} eventsScanned={} usersFound={} range={}..{}",
                 complete, pages, eventsScanned, lastByUser.size(), fromInclusive, toInclusive);
 
         return new AuditResult(complete, lastByUser);
@@ -356,6 +374,11 @@ public class QlikUserClient {
         Set<String> missing = ConcurrentHashMap.newKeySet();
         missing.addAll(missingUserIds);
 
+        final int initialToVerify = missing.size();
+
+        log.info("Getting last logon date from Audit Archive. Looking back to {}. By now {} users are considered active. Remaining {} users to verify last logon timestamp",
+                fromInclusive, activeWithin400.size(), missing.size());
+
         int daysTried = 0;
         int daysFetched = 0;
         long eventsScanned = 0;
@@ -365,6 +388,7 @@ public class QlikUserClient {
         int inFlight = 0;
 
         LocalDate d = toInclusive;
+        AtomicReference<LocalDate> oldestCompletedDay = new AtomicReference<>(toInclusive);
 
         while (!d.isBefore(fromInclusive) || inFlight > 0) {
 
@@ -374,9 +398,9 @@ public class QlikUserClient {
                 daysTried++;
 
                 cs.submit(() -> {
-                    if (missing.isEmpty()) return DayScanResult.okNoFetch();
-
                     String dateParam = ARCHIVE_DATE_FMT.format(day);
+                    if (missing.isEmpty()) return DayScanResult.okNoFetch(day);
+
                     URI uri = buildAbsoluteUri(archivePath + "?date=" + dateParam);
 
                     HttpRequest req = HttpRequest.newBuilder(uri)
@@ -390,13 +414,13 @@ public class QlikUserClient {
                     try {
                         resp = sendWithRetry(req, "AUDIT_ARCHIVE", "date=" + dateParam);
                     } catch (Exception ex) {
-                        return DayScanResult.fail("request_failed date=" + dateParam + " cause=" + ex);
+                        return DayScanResult.fail(day, "request_failed cause=" + ex);
                     }
 
                     int code = resp.statusCode();
                     if (code < 200 || code >= 300) {
                         closeQuietly(resp.body());
-                        return DayScanResult.fail("non_2xx date=" + dateParam + " status=" + code);
+                        return DayScanResult.fail(day, "non_2xx status=" + code);
                     }
 
                     long scannedThisDay = 0;
@@ -411,7 +435,7 @@ public class QlikUserClient {
                     try (InputStream in = new java.io.BufferedInputStream(decoded, 1 << 20);
                          JsonParser p = jsonFactory.createParser(in)) {
                         if (!moveParserToEventsArray(p)) {
-                            return DayScanResult.okFetched(0, 0);
+                            return DayScanResult.okFetched(day, 0, 0);
                         }
 
                         while (p.nextToken() != JsonToken.END_ARRAY) {
@@ -460,7 +484,7 @@ public class QlikUserClient {
                             dayMax.merge(userId, t, (a, b) -> a.isAfter(b) ? a : b);
                         }
                     } catch (Exception e) {
-                        return DayScanResult.fail("parse_failed date=" + dateParam + " cause=" + e);
+                        return DayScanResult.fail(day, "parse_failed cause=" + e);
                     }
 
                     int found = 0;
@@ -469,7 +493,7 @@ public class QlikUserClient {
                         if (missing.remove(e.getKey())) found++;
                     }
 
-                    return DayScanResult.okFetched(scannedThisDay, found);
+                    return DayScanResult.okFetched(day, scannedThisDay, found);
                 });
 
                 inFlight++;
@@ -481,7 +505,7 @@ public class QlikUserClient {
             try {
                 r = cs.take().get();
             } catch (Exception e) {
-                log.warn("AUDIT_ARCHIVE worker failed cause={}", e.toString(), e);
+                log.warn("AUDIT_ARCHIVE worker failed cause={}", e.getMessage());
                 missingUserIds.clear();
                 missingUserIds.addAll(missing);
                 return false;
@@ -497,24 +521,24 @@ public class QlikUserClient {
                 missingUserIds.addAll(missing);
                 return false;
             }
-
+            oldestCompletedDay.getAndUpdate(prev -> (prev.isAfter(r.day) ? r.day : prev));
             if (r.fetched) daysFetched++;
             eventsScanned += r.eventsScanned;
 
             if (done % ARCHIVE_MAX_DAYS_BETWEEN_PROGRESS_LOG == 0) {
-                log.info("AUDIT_ARCHIVE progress done={} daysFetched={} daysTried={} cacheSize={} missingRemaining={} threads={}",
-                        done, daysFetched, daysTried, activeWithin400.size(), missing.size(), parallelism);
+                LocalDate fromDone = oldestCompletedDay.get();
+                log.info("Getting last logon date from Audit Archive. Looking back to date {}. {} users are considered active. Remaining {} users to verify last logon timestamp",
+                        fromDone,
+                        activeWithin400.size(),
+                        missing.size());
             }
+
 
             if (missing.isEmpty()) {
                 while (inFlight > 0) {
                     try { cs.take().get(); } catch (Exception ignore) {}
                     inFlight--;
                 }
-
-                log.info("AUDIT_ARCHIVE early-stop: all missing users found. done={} daysFetched={} daysTried={} eventsScanned={} threads={}",
-                        done, daysFetched, daysTried, eventsScanned, parallelism);
-
                 missingUserIds.clear();
                 return true;
             }
@@ -523,31 +547,15 @@ public class QlikUserClient {
         missingUserIds.clear();
         missingUserIds.addAll(missing);
 
-        log.info("AUDIT_ARCHIVE done done={} daysFetched={} daysTried={} cacheSize={} missingRemaining={} eventsScanned={} threads={}",
-                done, daysFetched, daysTried, activeWithin400.size(), missing.size(), eventsScanned, parallelism);
-
         return true;
     }
 
-    private static final class DayScanResult {
-        final boolean ok;
-        final boolean fetched;
-        final long eventsScanned;
-        final int usersFound;
-        final String err;
+    private record DayScanResult(boolean ok, boolean fetched, LocalDate day, long eventsScanned, int usersFound, String err) {
 
-        private DayScanResult(boolean ok, boolean fetched, long eventsScanned, int usersFound, String err) {
-            this.ok = ok;
-            this.fetched = fetched;
-            this.eventsScanned = eventsScanned;
-            this.usersFound = usersFound;
-            this.err = err;
+        static DayScanResult okNoFetch(LocalDate day) { return new DayScanResult(true, false, day, 0, 0, null); }
+            static DayScanResult okFetched(LocalDate day, long eventsScanned, int usersFound) { return new DayScanResult(true, true, day, eventsScanned, usersFound, null); }
+            static DayScanResult fail(LocalDate day, String err) { return new DayScanResult(false, false, day, 0, 0, err); }
         }
-
-        static DayScanResult okNoFetch() { return new DayScanResult(true, false, 0, 0, null); }
-        static DayScanResult okFetched(long eventsScanned, int usersFound) { return new DayScanResult(true, true, eventsScanned, usersFound, null); }
-        static DayScanResult fail(String err) { return new DayScanResult(false, false, 0, 0, err); }
-    }
 
     private int archiveParallelism() {
         String v = System.getProperty("qlik.audit.archive.threads", "4");
@@ -565,9 +573,7 @@ public class QlikUserClient {
         JsonToken t = p.nextToken();
         if (t == null) return false;
 
-        if (t == JsonToken.START_ARRAY) {
-            return true;
-        }
+        if (t == JsonToken.START_ARRAY) return true;
 
         if (t != JsonToken.START_OBJECT) {
             p.skipChildren();
@@ -652,26 +658,60 @@ public class QlikUserClient {
     }
 
     private String getJsonBlocking(Function<UriBuilder, URI> uriFn, String tag, String logRef) {
-        try {
-            return webClient.get()
-                    .uri(uriFn)
-                    .header("Authorization", "Bearer " + properties.getApiToken())
-                    .header("Accept", "application/json")
-                    .exchangeToMono(resp -> {
-                        int code = resp.statusCode().value();
-                        if (code >= 200 && code < 300) return resp.bodyToMono(String.class);
+        final int maxAttempts = 5;
+        String lastCause = null;
 
-                        return resp.bodyToMono(String.class)
-                                .defaultIfEmpty("")
-                                .doOnNext(body -> log.warn("{} API returned {} ref={} body={}",
-                                        tag, code, logRef, truncate(body)))
-                                .then(Mono.empty());
-                    })
-                    .block();
-        } catch (Exception e) {
-            log.warn("{} request failed ref={} Cause={}", tag, logRef, e.toString(), e);
-            return null;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            final int attemptNo = attempt;
+
+            try {
+                String out = webClient.get()
+                        .uri(uriFn)
+                        .header("Authorization", "Bearer " + properties.getApiToken())
+                        .header("Accept", "application/json")
+                        .exchangeToMono(resp -> {
+                            int code = resp.statusCode().value();
+                            if (code >= 200 && code < 300) return resp.bodyToMono(String.class);
+
+                            return resp.bodyToMono(String.class)
+                                    .defaultIfEmpty("")
+                                    .doOnNext(body -> {
+                                        if (attemptNo == maxAttempts) {
+                                            log.warn("{} API returned {} ref={} body={}",
+                                                    tag, code, logRef, truncate(body));
+                                        } else {
+                                            log.debug("{} API returned {} ref={} body={}",
+                                                    tag, code, logRef, truncate(body));
+                                        }
+                                    })
+                                    .then(Mono.empty());
+                        })
+                        .block();
+
+                if (out != null) {
+                    if (attempt > 4) {
+                        log.debug("{} recovered after retries ref={} attempts={}/{}", tag, logRef, attempt, maxAttempts);
+                    }
+                    return out;
+                }
+
+                lastCause = "empty_response";
+
+            } catch (Exception e) {
+                lastCause = e.getClass().getSimpleName() + ": " + e.getMessage();
+
+                if (attempt == maxAttempts) {
+                    log.warn("{} request failed ref={} attempt={}/{} cause={}", tag, logRef, attempt, maxAttempts, e.toString());
+                } else {
+                    log.debug("{} request failed ref={} attempt={}/{} cause={}", tag, logRef, attempt, maxAttempts, e.toString());
+                }
+            }
+
+            if (attempt < maxAttempts) sleepQuietly(backoffMs(attempt));
         }
+
+        log.warn("{} request failed ref={} attempts={}/{} lastCause={}", tag, logRef, maxAttempts, maxAttempts, lastCause);
+        return null;
     }
 
     private URI buildAbsoluteUri(String relativePathAndQuery) {

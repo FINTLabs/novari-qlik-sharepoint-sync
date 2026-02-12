@@ -31,15 +31,11 @@ public class EntraCacheRefresher {
 
   @Scheduled(fixedDelayString = "PT12H")
   public void refreshCacheScheduled() {
-    try {
-      userSyncScheduler.running.set(true);
-          refreshCache();
-        } catch (Exception e) {
-          log.error("Failed refreshing Entra cache. Error {}", e.getMessage());
-        } finally {
-          userSyncScheduler.running.set(false);
-        }
-    }
+      boolean ran = userSyncScheduler.tryWithLock("ENTRA_CACHE_REFRESH", this::refreshCache);
+      if (!ran) {
+          log.info("Skipped Entra cache refresh because another sync/task is running");
+      }
+  }
 
     public void refreshCache() {
         log.info("Refreshing cache of Entra objects (guests + groups with memberships)");
