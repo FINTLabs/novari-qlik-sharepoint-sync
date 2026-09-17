@@ -26,17 +26,10 @@ jobs:
 
       - name: Bake manifests with Kustomize
         id: bake
-        uses: azure/k8s-bake@v3.0.4
+        uses: azure/k8s-bake@v4
         with:
           renderEngine: "kustomize"
           kustomizationPath: "kustomize/overlays/${{ inputs.environment }}/${{ inputs.org }}"
-
-      - name: Substitute image into baked YAML
-        id: substitute
-        uses: azure/k8s-artifact-substitute@v2.0.0
-        with:
-          manifests: ${{ steps.bake.outputs.manifestsBundle }}
-          images: ${{ inputs.image-tags }}
 
       - uses: azure/login@v3.1.0
         with:
@@ -54,7 +47,7 @@ jobs:
         uses: azure/k8s-deploy@v7.0.1
         with:
           action: deploy
-          manifests: ${{ steps.substitute.outputs.manifests }}
+          manifests: ${{ steps.bake.outputs.manifestsBundle }}
           images: ${{ inputs.image-tags }}
           pull-images: false
           namespace: fintlabs-no
