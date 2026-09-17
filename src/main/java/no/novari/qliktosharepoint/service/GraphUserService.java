@@ -37,8 +37,13 @@ public class GraphUserService {
     public Optional<User> findGuestByEmail(String email) {
         if (email == null || email.isBlank()) return Optional.empty();
 
-        String filter = "userType eq 'Guest' and mail eq '" + email.replace("'", "''") + "'";
+        String safeEmail = email.replace("'", "''");
 
+        String filter =
+                "userType eq 'Guest' and (" +
+                        "mail eq '" + safeEmail + "'" +
+                        " or otherMails/any(x:x eq '" + safeEmail + "')" +
+                        ")";
         try {
             var page = graphServiceClient.users().get(requestConfiguration -> {
                 requestConfiguration.queryParameters.filter = filter;

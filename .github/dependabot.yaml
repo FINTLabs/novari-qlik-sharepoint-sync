@@ -1,7 +1,21 @@
 version: 2
 updates:
-  - package-ecosystem: "github-actions"
+  - package-ecosystem: gradle
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "sunday"
+      interval: weekly
+    labels:
+      - dependencies
+      - backend
+    ignore:
+      - dependency-name: "org.springframework*"
+        update-types:
+          - "version-update:semver-major"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - github-actions
