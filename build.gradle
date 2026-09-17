@@ -30,7 +30,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
     implementation 'com.microsoft.graph:microsoft-graph:6.59.0'
-    implementation 'com.azure:azure-identity:1.18.1'
+    implementation 'com.azure:azure-identity:1.18.6'
 
     compileOnly 'org.projectlombok:lombok:1.18.36'
     annotationProcessor 'org.projectlombok:lombok:1.18.36'
