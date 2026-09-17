@@ -38,7 +38,7 @@ jobs:
           manifests: ${{ steps.bake.outputs.manifestsBundle }}
           images: ${{ inputs.image-tags }}
 
-      - uses: azure/login@v2.3.0
+      - uses: azure/login@v3.1.0
         with:
           creds: "${{ secrets[format('AKS_{0}_FINT_GITHUB', inputs.environment)] }}"
 
@@ -51,7 +51,7 @@ jobs:
           use-kubelogin: "true"
 
       - name: Deploy
-        uses: azure/k8s-deploy@v5.0.4
+        uses: azure/k8s-deploy@v7.0.1
         with:
           action: deploy
           manifests: ${{ steps.substitute.outputs.manifests }}
