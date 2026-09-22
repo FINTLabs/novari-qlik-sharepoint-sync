@@ -32,8 +32,8 @@ dependencies {
     implementation 'com.microsoft.graph:microsoft-graph:6.59.0'
     implementation 'com.azure:azure-identity:1.18.6'
 
-    compileOnly 'org.projectlombok:lombok:1.18.36'
-    annotationProcessor 'org.projectlombok:lombok:1.18.36'
+    compileOnly 'org.projectlombok:lombok:1.18.48'
+    annotationProcessor 'org.projectlombok:lombok:1.18.48'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.junit.jupiter:junit-jupiter:6.1.3'
