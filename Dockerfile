@@ -1,7 +1,7 @@
 FROM gradle:jdk23 AS builder
 USER root
 COPY . .
-RUN gradle --no-daemon build
+RUN sh ./gradlew --no-daemon build
 
 FROM eclipse-temurin:23-jre
 ENV TZ="Europe/Oslo" JAVA_TOOL_OPTIONS="-XX:+ExitOnOutOfMemoryError"
