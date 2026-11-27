@@ -1,6 +1,6 @@
 package no.novari.qliktosharepoint.qlik;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import no.novari.qliktosharepoint.config.QlikProperties;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
