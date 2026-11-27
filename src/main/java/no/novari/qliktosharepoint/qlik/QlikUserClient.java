@@ -1,12 +1,11 @@
 package no.novari.qliktosharepoint.qlik;
 
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonToken;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.core.JsonParser;
+import tools.jackson.core.JsonToken;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 import io.netty.channel.ChannelOption;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import io.netty.handler.timeout.WriteTimeoutHandler;
@@ -52,8 +51,6 @@ public class QlikUserClient {
     private final ObjectMapper objectMapper;
 
     private final java.net.http.HttpClient jdkHttpClient;
-    private final JsonFactory jsonFactory = new JsonFactory();
-
     private final ConcurrentHashMap<String, Instant> activeWithin400 = new ConcurrentHashMap<>();
 
     private volatile Instant lastRecentRefreshAtUtc;
@@ -221,7 +218,7 @@ public class QlikUserClient {
                     wrapper.setLinks(objectMapper.convertValue(root.get("links"), QlikUserListResponse.Links.class));
                 }
             } else {
-                ObjectNode userNode = root.deepCopy();
+                ObjectNode userNode = (ObjectNode) root.deepCopy();
                 userNode.remove("links");
                 QlikUserDto user = objectMapper.treeToValue(userNode, QlikUserDto.class);
                 wrapper.setData(List.of(user));
@@ -327,8 +324,8 @@ public class QlikUserClient {
                     for (JsonNode ev : data) {
                         eventsScanned++;
 
-                        String userId = ev.path("userId").asText(null);
-                        String eventTimeRaw = ev.path("eventTime").asText(null);
+                        String userId = ev.path("userId").asString(null);
+                        String eventTimeRaw = ev.path("eventTime").asString(null);
                         if (userId == null || userId.isBlank() || eventTimeRaw == null || eventTimeRaw.isBlank()) continue;
 
                         Instant t;
@@ -433,7 +430,7 @@ public class QlikUserClient {
                             : raw;
 
                     try (InputStream in = new java.io.BufferedInputStream(decoded, 1 << 20);
-                         JsonParser p = jsonFactory.createParser(in)) {
+                         JsonParser p = objectMapper.createParser(in)) {
                         if (!moveParserToEventsArray(p)) {
                             return DayScanResult.okFetched(day, 0, 0);
                         }
