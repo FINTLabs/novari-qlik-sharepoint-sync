@@ -1,7 +1,7 @@
 package no.novari.qliktosharepoint.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.microsoft.graph.models.User;
 import com.microsoft.graph.serviceclient.GraphServiceClient;
 import com.microsoft.kiota.ApiException;
@@ -154,7 +154,7 @@ public class GraphUserService {
                 User user = new User();
 
                 if (invitedUser != null && invitedUser.hasNonNull("id")) {
-                    user.setId(invitedUser.get("id").asText());
+                    user.setId(invitedUser.get("id").asString());
                 }
 
                 if (user.getId() != null && !user.getId().isBlank()) {
